@@ -1,0 +1,21 @@
+#nacos注册中新地址
+spring:
+  cloud:
+    nacos:
+      discovery:
+        server-addr: 192.168.8.100:8848
+  #数据源连接
+  datasource:
+    url: jdbc:mysql://192.168.8.100:3306/charging?useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=Asia/Shanghai
+    username: root
+    password: 123456
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  data:
+    redis:
+      host: 192.168.8.100
+      port: 6379
+      password: 123456
+canal:
+  server: 192.168.8.100:11111
+  destination: charging
+  async: true

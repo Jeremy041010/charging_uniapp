@@ -1,0 +1,14 @@
+server:
+  port: 10100
+spring:
+  application:
+    name: charging-user
+  profiles:
+    active: local
+mybatis-plus:
+  mapper-locations: classpath*:mapper/*.xml
+  configuration:
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+logging:
+  level:
+    cn.tedu: debug

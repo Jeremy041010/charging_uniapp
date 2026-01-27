@@ -1,0 +1,22 @@
+server:
+  #user车主 10000 device设备11000 order订单12000 cost计价13000
+  port: 13000
+spring:
+  application:
+    name: charging-cost
+  #激活开启的多环境文件 local jsd 激活local
+  profiles:
+    active: local
+mybatis-plus:
+  #mapper 本地映射文件扫描 当BaseMapper现成方法不足以支持需求 需要自定义sql
+  mapper-locations: classpath*:mapper/*.xml
+  #日志 打印 实现类
+  configuration:
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+#项目在业务代码中要输出一些日志 all debug info warn error off
+logging:
+  level:
+    cn.tedu: debug
+cache:
+  warm:
+    enabled: false

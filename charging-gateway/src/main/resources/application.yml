@@ -1,0 +1,40 @@
+server:
+  port: 7070
+spring:
+  application:
+    name: charging-gateway
+  profiles:
+    active: local
+  cloud:
+    gateway:
+      #网关cors
+      globalcors:
+        cors-configurations:
+          '[/**]':
+            allowedOriginPatterns: "*"
+            allowedHeaders: "*"
+            allowedMethods: "*"
+            allowCredentials: true
+            #每一个yaml属性都对应一个对象属性 自动满足 驼峰命名 和 -之间关系
+            maxAge: 3600
+      #网关路由
+      routes:
+        #车主
+        - id: charging-user
+          uri: lb://charging-user
+          predicates:
+            - Path=/user_api/**
+          filters:
+            - StripPrefix=1
+        - id: charging-device
+          uri: lb://charging-device
+          predicates:
+            - Path=/device_api/**
+          filters:
+            - StripPrefix=1
+        - id: charging-order
+          uri: lb://charging-order
+          predicates:
+            - Path=/order_api/**
+          filters:
+            - StripPrefix=1

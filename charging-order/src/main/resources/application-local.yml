@@ -1,0 +1,42 @@
+spring:
+  cloud:
+    nacos:
+      discovery:
+        server-addr: localhost:8848
+  datasource:
+    url: jdbc:mysql:///charging?useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=Asia/Shanghai
+    username: root
+    password: root
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  data:
+    redis:
+      host: 127.0.0.1
+      port: 6379
+  # ========== 唯一修改1处 + 修正层级：rabbitmq与data同级，地址改为远程 ==========
+  rabbitmq:
+    host: 192.168.8.100
+    port: 5672
+    username: admin
+    password: 123456
+    virtual-host: /
+    #设置确认方式 手动确认 fasle
+    listener:
+      simple:
+        #默认auto自动确认
+        acknowledge-mode: manual
+
+charging:
+  emqx:
+    address: tcp://localhost:1883
+    username: admin
+    password: 1234567890qwe
+
+xxl:
+  job:
+    admin:
+      addresses: http://127.0.0.1:8080/xxl-job-admin
+      accessToken: default_token
+    executor:
+      appname: order-executor
+      ip: 127.0.0.1
+      port: 19999

@@ -1,0 +1,63 @@
+spring:
+  elasticsearch:
+    uris: http://192.168.8.100:9200
+  rabbitmq:
+    host: 192.168.8.100
+    port: 5672
+    username: admin
+    password: 123456
+    virtual-host: /
+    #设置确认方式 手动确认 fasle
+    listener:
+      simple:
+        #默认auto自动确认
+        acknowledge-mode: manual
+        #每次push消息批量个数
+        #prefetch: 10
+        #是否每次拒绝reject 让消息重新进入队列 如果不重新入队 消息死信
+        #reject-undelivered: false
+  cloud:
+    nacos:
+      discovery:
+        server-addr: 192.168.8.100:8848
+  #数据源连接
+  datasource:
+    url: jdbc:mysql://192.168.8.100:3306/charging?useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=Asia/Shanghai
+    username: root
+    password: 123456
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  data:
+    redis:
+      host: 192.168.8.100
+      port: 6379
+      password: 123456
+#自定义emqx连接 对象所需必要属性
+charging:
+  emqx:
+    address: tcp://127.0.0.1:1883
+    username: admin
+    password: 1234567890qwe
+#配置调度中心属性
+xxl:
+  job:
+    admin:
+      #调度中心连接地址
+      addresses: http://127.0.0.1:8080/xxl-job-admin
+      #连接调度中心 注册 发送请求 权限票据
+    accessToken: default_token
+    # 将当前执行定时任务的进程 定义一个注册中心的执行器
+    # 不同的执行器在调度中心 是不一样的数据 管理不同的定时业务
+    # 和微服务分组
+    executor:
+      #执行器名称
+      appname: order-executor
+      #注册ip 让调度中心可以通过ip连接当前执行器 如果不配置ip 程序启动会选择默认ip
+      ip:
+      #注册端口 让调度中心可以通过port连接当前执行器 底层通信协议端口
+      port: 19999
+      #日志路径 当前进程打印日志文件夹
+      logpath: /logs
+      #日志保存天数
+      logretentiondays: 30
+      #执行器地址
+      address:

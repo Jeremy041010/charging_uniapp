@@ -1,0 +1,16 @@
+#nacos注册中新地址
+spring:
+  cloud:
+    nacos:
+      discovery:
+        server-addr: localhost:8848
+  #数据源连接
+  datasource:
+    url: jdbc:mysql:///charging?useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=Asia/Shanghai
+    username: root
+    password: root
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+canal:
+  server: 127.0.0.1:11111
+  destination: charging
