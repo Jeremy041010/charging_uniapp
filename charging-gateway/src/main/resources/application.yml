@@ -7,19 +7,32 @@ spring:
     active: local
   cloud:
     gateway:
-      #网关cors
+      # 关键：支持SSE长连接，关闭网关的响应缓存
+      httpclient:
+        connect-timeout: 30000
+        response-timeout: 3600000 # 1小时超时，适配SSE长连接
+      # 网关CORS跨域（修复细节，适配SSE）
       globalcors:
         cors-configurations:
           '[/**]':
-            allowedOriginPatterns: "*"
+            allowedOriginPatterns: "*" # 支持通配符，适配所有前端域名
             allowedHeaders: "*"
-            allowedMethods: "*"
+            allowedMethods: [GET, POST, PUT, DELETE, OPTIONS] # 显式声明，避免OPTIONS预检失败
             allowCredentials: true
-            #每一个yaml属性都对应一个对象属性 自动满足 驼峰命名 和 -之间关系
-            maxAge: 3600
-      #网关路由
+            maxAge: 360000 # 预检缓存时间加长，单位毫秒（原3600是秒，yaml中此处实际是毫秒，修正）
+      # 网关路由（新增SSE相关的过滤器，移除不必要的重试）
       routes:
-        #车主
+        - id: charging-ai
+          uri: lb://charging-ai # 服务发现，确保charging-ai在nacos注册（本地测试可直接写http://localhost:14000）
+          predicates:
+            - Path=/ai_api/**
+          filters:
+            - StripPrefix=1 # 剥离/ai_api，转发到AI服务的/ai/**
+            # 关键：添加SSE支持的过滤器，禁用缓存、设置响应头
+            - AddResponseHeader=Content-Type, text/event-stream
+            - AddResponseHeader=Cache-Control, no-cache
+            - AddResponseHeader=Connection, keep-alive
+        # 其他服务路由保留
         - id: charging-user
           uri: lb://charging-user
           predicates:
@@ -38,3 +51,5 @@ spring:
             - Path=/order_api/**
           filters:
             - StripPrefix=1
+# 可选：本地测试关闭服务发现（如果没装nacos），直接用http转发
+# spring.cloud.gateway.discovery.locator.enabled: false
