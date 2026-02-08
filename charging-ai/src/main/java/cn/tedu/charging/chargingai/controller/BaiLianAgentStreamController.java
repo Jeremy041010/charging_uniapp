@@ -5,6 +5,8 @@ import com.alibaba.cloud.ai.dashscope.agent.DashScopeAgentOptions;
 import com.alibaba.cloud.ai.dashscope.api.DashScopeAgentApi;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.messages.AssistantMessage;
+import org.springframework.ai.chat.messages.SystemMessage;
+import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
@@ -15,6 +17,7 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import jakarta.annotation.PostConstruct;
+import java.util.List;
 
 @Slf4j
 @RestController
@@ -44,48 +47,55 @@ public class BaiLianAgentStreamController {
     }
 
     /**
-     * 最终版：仅1次老李:前缀 + 合并完整详细回复 + 修复异常编译问题
+     * 最终定型版：固定格式输出（单条老李:前缀+完整分点回复）+ 系统指令固化风格
      */
-    @GetMapping(value = "/bailian/agent/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    @GetMapping(value = "/bailian/agent/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE + ";charset=UTF-8")
     public Flux<String> stream(String message) {
-        // 入参校验：仅1次老李前缀
+        // 入参校验
         if (message == null || message.trim().isEmpty()) {
             return Flux.just("老李: 请输入有效的问题！\n\n");
         }
         log.info("接收前端提问：{}", message);
 
-        Prompt prompt = new Prompt(message.trim());
+        // 核心：系统提示词 - 强制AI按指定格式/风格回复，完全贴合示例
+        String systemPrompt = """
+        你是充电桩专属智能助手「老李」，仅解答充电桩使用、充电操作、收费、新能源汽车基础问题，非相关问题直接说明不专业并建议咨询专业人士。
+        回复严格遵循：
+        1. 开头简短自报身份，表明解答方向；
+        2. 核心内容按「XX方面：」分模块，每模块仅用1-2句短句，模块间用分号分隔，不用列表；
+        3. 结尾极简提醒非专业领域需咨询专人；
+        4. 总字数控制在200字内，语言正式，无冗余表述。
+        """;
 
-        // 核心逻辑：合并所有流式内容 → 仅加1次老李: → 保留SSE规范
+        // 构建Prompt：系统指令+用户问题
+        Prompt prompt = new Prompt(List.of(
+                new SystemMessage(systemPrompt),
+                new UserMessage(message.trim())
+        ));
+
+        // 流式合并为完整字符串，仅添加1次老李:前缀（贴合你要的格式）
         return agent.stream(prompt)
-                // 转换为纯文本，过滤空内容
                 .map(response -> {
                     AssistantMessage output = response.getResult().getOutput();
-                    String text = output.getText() == null ? "" : output.getText().trim();
-                    // 保留AI返回的规范换行，让格式更美观
-                    return text;
+                    return output.getText() == null ? "" : output.getText().trim();
                 })
                 .filter(content -> !content.isEmpty())
-                // 合并所有流式分片为【一个完整的字符串】（核心：解决重复前缀）
-                .reduce("", (totalContent, currentSegment) -> totalContent + currentSegment)
-                // 仅在完整内容前加1次「老李:」，保留SSE结束符\n\n
-                .map(completeContent -> "老李: " + completeContent + "\n\n")
-                // 修复异常：Mono流的异常处理，用Mono.just替代Flux.just
+                .reduce("", String::concat) // 合并所有分片为完整内容
+                .map(completeContent -> "老李: " + completeContent + "\n\n") // 固定前缀
                 .onErrorResume(e -> {
                     log.error("百炼智能体流式响应异常", e);
-                    return Mono.just("老李: 很抱歉，处理你的问题时发生异常：" + e.getMessage() + "\n\n");
+                    return Mono.just("老李: 很抱歉，处理你的问题时发生异常：" + e.getMessage() + "，请稍后重试！\n\n");
                 })
-                // 最后将Mono转回Flux，匹配方法返回值类型
                 .flux();
     }
 
-    // 网关测试接口（供前端testGatewayConnection调用）
+    // 网关测试接口
     @GetMapping("/test")
     public String testGateway() {
         return "charging-ai服务已连接，网关转发正常！";
     }
 
-    // 健康检查接口（供前端testAiHealth调用）
+    // 健康检查接口
     @GetMapping("/health")
     public String healthCheck() {
         return "{\"status\":\"UP\",\"service\":\"charging-ai\",\"message\":\"百炼智能体服务正常\"}";
