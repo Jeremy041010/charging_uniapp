@@ -11,21 +11,44 @@
 
     <artifactId>charging-common</artifactId>
     <dependencies>
-        <!--JSON字符串和对象转化工具-->
+        <!-- Spring Boot 3.x 参数校验核心依赖（自动引入jakarta.validation） -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-validation</artifactId>
+        </dependency>
+
+        <!-- Lombok（父工程已声明版本，直接用） -->
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+        </dependency>
+
+        <!-- 数据库依赖（可选） -->
+        <dependency>
+            <groupId>mysql</groupId>
+            <artifactId>mysql-connector-java</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+
+        <!-- JSON工具 -->
         <dependency>
             <groupId>com.alibaba.fastjson2</groupId>
             <artifactId>fastjson2</artifactId>
         </dependency>
-        <!--elasticsearch实体对象所需-->
+
+        <!-- ES依赖 -->
         <dependency>
             <groupId>org.springframework.data</groupId>
             <artifactId>spring-data-elasticsearch</artifactId>
         </dependency>
-        <!--po所需要的mybatis-plus-->
+
+        <!-- MyBatis-Plus（父工程已声明版本） -->
         <dependency>
             <groupId>com.baomidou</groupId>
-            <artifactId>mybatis-plus-boot-starter</artifactId><!-- 请根据需要选择合适的版本 -->
+            <artifactId>mybatis-plus-boot-starter</artifactId>
         </dependency>
+
+        <!-- Spring WebMVC（Spring Boot 3.x适配） -->
         <dependency>
             <groupId>org.springframework</groupId>
             <artifactId>spring-webmvc</artifactId>

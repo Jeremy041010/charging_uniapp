@@ -17,6 +17,7 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import jakarta.annotation.PostConstruct;
+import java.time.Duration;
 import java.util.List;
 
 @Slf4j
@@ -46,25 +47,17 @@ public class BaiLianAgentStreamController {
         log.info("百炼智能体初始化完成，AppId：{}，增量输出：{}", appId, incrementalOutput);
     }
 
-    /**
-     * 最终定型版：固定格式输出（单条老李:前缀+完整分点回复）+ 系统指令固化风格
-     */
     @GetMapping(value = "/bailian/agent/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE + ";charset=UTF-8")
     public Flux<String> stream(String message) {
         // 入参校验
         if (message == null || message.trim().isEmpty()) {
-            return Flux.just("老李: 请输入有效的问题！\n\n");
+            return Flux.just("老李: 请输入有效的问题！");
         }
         log.info("接收前端提问：{}", message);
 
-        // 核心：系统提示词 - 强制AI按指定格式/风格回复，完全贴合示例
+        // 系统提示词
         String systemPrompt = """
-        你是充电桩专属智能助手「老李」，仅解答充电桩使用、充电操作、收费、新能源汽车基础问题，非相关问题直接说明不专业并建议咨询专业人士。
-        回复严格遵循：
-        1. 开头简短自报身份，表明解答方向；
-        2. 核心内容按「XX方面：」分模块，每模块仅用1-2句短句，模块间用分号分隔，不用列表；
-        3. 结尾极简提醒非专业领域需咨询专人；
-        4. 总字数控制在200字内，语言正式，无冗余表述。
+               你是专业充电桩智能助手「老李」，同时具备通用大模型的全领域知识能力。你可以专业解答充电桩使用、充电操作、充电收费、新能源汽车相关问题；除此之外，生活、学习、工作、技术、代码、娱乐等所有问题你都能正常回答。回答自然、简洁、正常交流即可，不使用固定格式、不强制模块。
         """;
 
         // 构建Prompt：系统指令+用户问题
@@ -73,18 +66,24 @@ public class BaiLianAgentStreamController {
                 new UserMessage(message.trim())
         ));
 
-        // 流式合并为完整字符串，仅添加1次老李:前缀（贴合你要的格式）
+        // 合并所有分片为完整文本（保证格式统一），解决超时/连接中止问题
         return agent.stream(prompt)
                 .map(response -> {
                     AssistantMessage output = response.getResult().getOutput();
-                    return output.getText() == null ? "" : output.getText().trim();
+                    String text = output.getText() == null ? "" : output.getText().trim();
+                    return text;
                 })
                 .filter(content -> !content.isEmpty())
-                .reduce("", String::concat) // 合并所有分片为完整内容
-                .map(completeContent -> "老李: " + completeContent + "\n\n") // 固定前缀
+                // 合并所有分片为完整字符串（避免格式错乱）
+                .reduce("", String::concat)
+                // 确保开头有"老李: "前缀（防止AI遗漏）
+                .map(completeContent -> completeContent.startsWith("老李: ") ? completeContent : "老李: " + completeContent)
+                // 超时保护（5分钟）
+                .timeout(Duration.ofMinutes(5), Mono.just("老李: 后端处理超时，请稍后重试！"))
+                // 异常兜底
                 .onErrorResume(e -> {
-                    log.error("百炼智能体流式响应异常", e);
-                    return Mono.just("老李: 很抱歉，处理你的问题时发生异常：" + e.getMessage() + "，请稍后重试！\n\n");
+                    log.error("智能体响应异常", e);
+                    return Mono.just("老李: 很抱歉，处理你的问题时发生异常：" + e.getMessage() + "，请稍后重试！");
                 })
                 .flux();
     }
@@ -98,6 +97,6 @@ public class BaiLianAgentStreamController {
     // 健康检查接口
     @GetMapping("/health")
     public String healthCheck() {
-        return "{\"status\":\"UP\",\"service\":\"charging-ai\",\"message\":\"百炼智能体服务正常\"}";
+        return "{\"status\":\"UP\",\"service\":\"charging-ai\",\"message\":\"智能体服务正常\"}";
     }
 }
