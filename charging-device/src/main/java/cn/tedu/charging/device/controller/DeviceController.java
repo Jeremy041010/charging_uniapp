@@ -4,6 +4,7 @@ import cn.tedu.charging.common.pojo.query.NearStationsQuery;
 import cn.tedu.charging.common.pojo.vo.StationDetailVO;
 import cn.tedu.charging.common.pojo.vo.StationInfoVO;
 import cn.tedu.charging.common.protocol.JsonResult;
+import cn.tedu.charging.device.pojo.po.ChargingGunInfoPO;
 import cn.tedu.charging.device.service.DeviceService;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.catalina.startup.UserConfig;
@@ -45,11 +46,19 @@ public class DeviceController {
     }
     //订单调用设备检查枪是否可用
     @GetMapping("/device/gun/check")
-    //订单调用设备检查枪是否可用
     public JsonResult<Boolean> checkGun(@RequestParam("gunId") Integer gunId){
-        //1. 如果正常实现这个接口 用gunId 检查是否枪非空闲
-        //2. 轻做 业务简化 直接返回true 每次下单都不会因为枪的实际状态影响下单流程
-        return JsonResult.ok(true);
+        try {
+            // 检查枪的实际状态
+            ChargingGunInfoPO gun = deviceService.getGunById(gunId);
+            if (gun != null && gun.getGunStatus() != null) {
+                // 枪状态：1-空闲, 2-使用中, 3-故障, 4-离线
+                return JsonResult.ok(gun.getGunStatus() == 1); // 只有空闲状态才返回true
+            }
+            return JsonResult.ok(false);
+        } catch (Exception e) {
+            log.error("检查枪状态失败，gunId={}", gunId, e);
+            return JsonResult.ok(false);
+        }
     }
 
     //修改枪状态的方法
@@ -62,6 +71,13 @@ public class DeviceController {
     @GetMapping("/device/gun/using")
    public JsonResult<Boolean> gunUsing(@RequestParam("gunId") Integer gunId){
         deviceService.updateGunStatus(gunId,1);
+        return JsonResult.ok(true);
+    }
+    
+    // 新增：释放充电枪接口
+    @GetMapping("/device/gun/release")
+    public JsonResult<Boolean> releaseGun(@RequestParam("gunId") Integer gunId){
+        deviceService.updateGunStatus(gunId,1); // 1表示空闲状态
         return JsonResult.ok(true);
     }
 }

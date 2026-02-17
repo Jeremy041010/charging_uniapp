@@ -2,16 +2,18 @@ package cn.tedu.charging.order.controller;
 
 import cn.tedu.charging.common.pojo.param.OrderAddParam;
 import cn.tedu.charging.common.protocol.JsonResult;
+import cn.tedu.charging.order.pojo.po.ChargingBillEndPO;
 import cn.tedu.charging.order.service.OrderService;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.Map;
 
 @RestController
 public class OrderController {
     @Autowired
     private OrderService orderService;
+    
     //扫码下单
     @PostMapping("/order/create")
     public JsonResult<String> createOrder(@RequestBody OrderAddParam param){
@@ -20,4 +22,20 @@ public class OrderController {
         return JsonResult.ok(billId);
     }
 
+    //结束订单
+    @PostMapping("/order/end")
+    public JsonResult<String> endOrder(@RequestBody ChargingBillEndPO endData) {
+        //调用业务层处理订单结束逻辑
+        orderService.endOrder(endData.getBillId(), endData);
+        return JsonResult.ok("订单结束成功");
+    }
+
+    //查询结束订单信息
+    @PostMapping("/order/end/info")
+    public JsonResult<ChargingBillEndPO> getEndOrder(@RequestBody Map<String, String> request) {
+        String billId = request.get("billId");
+        //调用业务层查询结束订单信息
+        ChargingBillEndPO endOrder = orderService.getEndOrder(billId);
+        return JsonResult.ok(endOrder);
+    }
 }

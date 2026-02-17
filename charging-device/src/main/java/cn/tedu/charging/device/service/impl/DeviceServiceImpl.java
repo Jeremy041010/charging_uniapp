@@ -101,4 +101,9 @@ public class DeviceServiceImpl implements DeviceService {
     public Boolean checkGunAvailable(Integer gunId) {
         return null;
     }
+    
+    @Override
+    public ChargingGunInfoPO getGunById(Integer gunId) {
+        return deviceRepository.getGunById(gunId);
+    }
 }

@@ -91,7 +91,16 @@ public class DeviceRepositoryImpl implements DeviceRepository {
 
     @Override
     public Boolean updateGunStatus(Integer gunId, Integer status) {
-        return null;
+        try {
+            ChargingGunInfoPO gun = new ChargingGunInfoPO();
+            gun.setId(gunId);
+            gun.setGunStatus(status);
+            int result = gunMapper.updateById(gun);
+            return result > 0;
+        } catch (Exception e) {
+            log.error("更新枪状态失败，gunId={}, status={}", gunId, status, e);
+            return false;
+        }
     }
 
     @Override
@@ -112,6 +121,11 @@ public class DeviceRepositoryImpl implements DeviceRepository {
     @Override
     public Long countGunByIdAndStatus(Integer gunId, Integer status) {
         return 0L;
+    }
+    
+    @Override
+    public ChargingGunInfoPO getGunById(Integer gunId) {
+        return gunMapper.selectById(gunId);
     }
 
     @Override

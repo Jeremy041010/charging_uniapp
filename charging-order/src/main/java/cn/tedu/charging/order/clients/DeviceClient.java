@@ -13,6 +13,11 @@ public interface DeviceClient {
     //调用设备 检查枪 是否允许充电
     @GetMapping("/device/gun/check")
     JsonResult<Boolean> checkGun(@RequestParam("gunId") Integer gunId);
+    
     @GetMapping("/device/gun/using")
     JsonResult<Boolean> gunUsing(@RequestParam("gunId") Integer gunId);
+    
+    // 新增：释放充电枪
+    @GetMapping("/device/gun/release")
+    JsonResult<Boolean> releaseGun(@RequestParam("gunId") Integer gunId);
 }

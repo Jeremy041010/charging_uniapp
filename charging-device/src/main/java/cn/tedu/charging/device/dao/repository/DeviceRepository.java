@@ -26,6 +26,8 @@ public interface DeviceRepository {
     void deleteStation(StationCanalPO stationCanalPO);
 
     Long countGunByIdAndStatus(Integer gunId, Integer status);
+    
+    ChargingGunInfoPO getGunById(Integer gunId);
 
     List<ChargingStationPO> getAllStations();
 

@@ -15,10 +15,12 @@ import cn.tedu.charging.common.utils.SnowflakeIdGenerator;
 import cn.tedu.charging.common.utils.XxlJobTaskUtil;
 
 import cn.tedu.charging.order.amqp.AmqpDelayProducer;
+import cn.tedu.charging.order.clients.CostClient;
 import cn.tedu.charging.order.clients.DeviceClient;
 import cn.tedu.charging.order.clients.UserClient;
 import cn.tedu.charging.order.dao.repository.BillRepository;
 import cn.tedu.charging.order.mqtt.MqttProducer;
+import cn.tedu.charging.order.pojo.po.ChargingBillEndPO;
 import cn.tedu.charging.order.pojo.po.ChargingBillExceptionPO;
 import cn.tedu.charging.order.pojo.po.ChargingBillSuccessPO;
 import cn.tedu.charging.order.server.points.WebsocketServerPoint;
@@ -27,6 +29,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
 import java.util.Date;
 
 
@@ -47,6 +50,8 @@ public class OrderServiceImpl implements OrderService {
     private BillRepository billRepository;
     @Autowired
     private WebsocketServerPoint websocketServerPoint;
+    @Autowired
+    private CostClient costClient;
 
     @Override
     public String createOrder(OrderAddParam param) {
@@ -133,6 +138,59 @@ public class OrderServiceImpl implements OrderService {
             throw new ServiceException(5002, "检查订单状态异常：" + e.getMessage());
         }
     }
+
+    // 结束订单业务方法实现
+    @Override
+    public void endOrder(String billId, ChargingBillEndPO endData) {
+        try {
+            log.debug("开始处理订单结束业务, billId={}", billId);
+
+            // 1. 验证订单是否存在且状态为充电中
+            ChargingBillSuccessPO success = billRepository.getSuccessByBillId(billId);
+            if (success == null) {
+                throw new OrderBusinessException(4004, "订单不存在，无法结束订单", billId);
+            }
+
+            if (success.getBillStatus() == null || success.getBillStatus() != 1) {
+                throw new OrderBusinessException(4005, "订单状态不是充电中，无法结束订单", billId);
+            }
+
+            // 2. 更新成功订单状态为已结束（状态2）
+            billRepository.updateSuccessStatus(billId, 2);
+
+            // 3. 更新结束订单记录
+            ChargingBillEndPO endRecord = new ChargingBillEndPO();
+            endRecord.setBillId(billId);
+
+            endRecord.setConsumeAmount(new BigDecimal("15.50"));
+            
+            billRepository.saveEnd(endRecord);
+
+            // 4. 同步释放充电枪状态为"空闲"
+            JsonResult<Boolean> releaseResult = deviceClient.releaseGun(success.getGunId());
+            if (releaseResult.getCode() != 0) {
+                log.warn("释放充电枪状态失败，但订单已结束，billId={}", billId);
+            } else if (!releaseResult.getData()) {
+                log.warn("充电枪释放操作未成功，billId={}", billId);
+            }
+
+            log.debug("订单结束处理完成, billId={}", billId);
+        } catch (Exception e) {
+            log.error("处理订单结束业务失败，billId={}", billId, e);
+            throw new ServiceException(5019, "处理订单结束业务异常：" + e.getMessage());
+        }
+    }
+
+    @Override
+    public ChargingBillEndPO getEndOrder(String billId) {
+        try {
+            return billRepository.getEndByBillId(billId);
+        } catch (Exception e) {
+            log.error("查询结束订单失败，billId={}", billId, e);
+            throw new ServiceException(5020, "查询结束订单异常：" + e.getMessage());
+        }
+    }
+
 
     private String generateId() {
         return idGenerator.nextId() + "";
