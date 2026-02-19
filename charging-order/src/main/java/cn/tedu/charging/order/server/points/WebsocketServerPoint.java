@@ -1,6 +1,5 @@
 package cn.tedu.charging.order.server.points;
 
-
 import com.alibaba.fastjson2.JSON;
 import jakarta.websocket.*;
 import jakarta.websocket.server.PathParam;
@@ -26,9 +25,10 @@ import java.util.concurrent.ConcurrentHashMap;
 @Slf4j
 @ServerEndpoint("/ws/server/{userId}")
 public class WebsocketServerPoint {
-    private static final Map<Integer,Session> SESSIONS= new ConcurrentHashMap<>();
+    private static final Map<Integer,Session> SESSIONS=new ConcurrentHashMap<>();
     /*
     客户端连接陈工时调用的方法
+    每次连接建立,都要考虑SESSIONS中的变化
      */
     @OnOpen
     public void onOpen(Session session, @PathParam("userId")Integer userId) throws IOException {
@@ -49,32 +49,31 @@ public class WebsocketServerPoint {
         SESSIONS.put(userId,session);
         //打印SESSIONS的个数,就是在线人数
         log.info("当前在线人数:{}",SESSIONS.size());
-
-       // session.getBasicRemote().sendText("欢迎连接");
     }
     /*
     客户端断开连接时调用的方法
      */
     @OnClose
-    public void onClose(Session session,@PathParam("userId") Integer userId){
-        log.info("连接断开,连接id:{},用户Id:{}",session.getId(),userId);
+    public void onClose(Session session,@PathParam("userId")Integer userId){
+        log.info("连接断开,连接id:{},用户id:{}",session.getId(),userId);
+        //如果用户连接断开,相当于用户下线,要从SESSIONS移除
+        SESSIONS.remove(userId);
+        log.info("当前在线人数:{}",SESSIONS.size());
     }
     /*
     客户端发送消息时调用的方法
      */
     @OnMessage
-    public void onMessage(String message, Session session,@PathParam("userId") Integer userId) throws IOException {
-        log.info("收到客户端发来的消息:{},连接id:{},用户Id:{}",message,session.getId(),userId);
-        session.getBasicRemote().sendText("收到");
+    public void onMessage(String message,Session session,@PathParam("userId")Integer userId){
+        log.info("收到客户端发来的消息:{},连接id:{},用户id:{}",message,session.getId(),userId);
     }
     /*
     如果上述3个方法,在执行代码功能的过程中,出现异常,可以调用异常处理
      */
     @OnError
-    public void onError(Throwable error, Session session,@PathParam("userId") Integer userId){
-        log.error("通信过程异常:{},连接id:{},用户Id:{}",error ,session.getId(),userId);
+    public void onError(Throwable error,Session session,@PathParam("userId")Integer userId){
+        log.error("通信过程异常:{},连接id:{},用户id:{}",error,session.getId(),userId);
     }
-
     //给用户推送消息
 
     /**
@@ -104,4 +103,6 @@ public class WebsocketServerPoint {
             log.error("用户已下线,无法推送消息,用户id:{}",userId);
         }
     }
+
+
 }

@@ -11,33 +11,6 @@ import java.util.Map;
 @Configuration
 @Slf4j
 public class DeclareConfiguration {
-    //demo案例中 声明内容 fanout类型 fanout_demo_ex demo_queue 正常绑定没有路由key
-    /**
-     * 声明交换机fanout_demo_ex
-     * test底层测试 声明交换机 channel.exchangeDeclare("名字","类型")
-     */
-    @Bean
-    public Exchange fanoutDemoEx(){
-        //直接返回一个实例化对象
-        return new FanoutExchange("fanout_demo_ex");
-    }
-    /**
-     * 声明队列demo_queue
-     * test底层测试 队列声明 channel.queueDeclare("名字","durable","exclusive","autoDel",arguments);
-     */
-    @Bean
-    public Queue demoQueue(){
-        return new Queue("demo_queue",false,false,false,null);
-    }
-    /**
-     * 声明绑定关系
-     * test底层测试 绑定关系 channel.queueBind("队列名","交换机名","路由key",headers)
-     */
-    @Bean
-    public Binding demoBinding(){
-        //底层代码binding有两个方法 queueBind(队列绑定给交换机) exchangeBind(交换机绑定给交换机)
-        return new Binding("demo_queue",Binding.DestinationType.QUEUE,"fanout_demo_ex","",null);
-    }
     private static final String DELAY_EX="DELAY_EX";
     private static final String DELAY_Q="DELAY_Q";
     private static final String DLX_EX="DLX_EX";
