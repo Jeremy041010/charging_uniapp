@@ -80,4 +80,20 @@ public class DeviceController {
         deviceService.updateGunStatus(gunId,1); // 1表示空闲状态
         return JsonResult.ok(true);
     }
+    
+    // 新增：获取枪信息接口（用于获取pileId）
+    @GetMapping("/device/gun/info/{gunId}")
+    public JsonResult<ChargingGunInfoPO> getGunInfo(@PathVariable Integer gunId){
+        try {
+            ChargingGunInfoPO gun = deviceService.getGunById(gunId);
+            if (gun != null) {
+                return JsonResult.ok(gun);
+            } else {
+                return JsonResult.error(404, "枪信息不存在");
+            }
+        } catch (Exception e) {
+            log.error("获取枪信息失败，gunId={}", gunId, e);
+            return JsonResult.error(500, "获取枪信息异常：" + e.getMessage());
+        }
+    }
 }

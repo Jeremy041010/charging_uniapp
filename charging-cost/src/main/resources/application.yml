@@ -7,6 +7,17 @@ spring:
   #激活开启的多环境文件 local jsd 激活local
   profiles:
     active: local
+
+# 计费系统默认配置
+cost:
+  default:
+    # 默认电价（元/度）
+    power-fee: 1.40
+    # 默认服务费（元）
+    service-fee: 0.50
+    # 默认时间范围（24小时）
+    start-time: 0
+    end-time: 24
 mybatis-plus:
   #mapper 本地映射文件扫描 当BaseMapper现成方法不足以支持需求 需要自定义sql
   mapper-locations: classpath*:mapper/*.xml

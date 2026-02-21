@@ -7,6 +7,8 @@ import cn.tedu.charging.common.exception.ServiceException;
 import cn.tedu.charging.common.pojo.message.DelayCheckMessage;
 import cn.tedu.charging.common.pojo.message.StartCheckMessage;
 import cn.tedu.charging.common.pojo.param.OrderAddParam;
+import cn.tedu.charging.common.pojo.param.ProgressCostParam;
+import cn.tedu.charging.common.pojo.vo.ProgressCostVO;
 import cn.tedu.charging.common.protocol.JsonResult;
 import cn.tedu.charging.common.protocol.WebSocketResult;
 import cn.tedu.charging.common.utils.CronUtil;
@@ -14,6 +16,7 @@ import cn.tedu.charging.common.utils.SnowflakeIdGenerator;
 
 import cn.tedu.charging.common.utils.XxlJobTaskUtil;
 
+import cn.tedu.charging.device.pojo.po.ChargingGunInfoPO;
 import cn.tedu.charging.order.amqp.AmqpDelayProducer;
 import cn.tedu.charging.order.clients.CostClient;
 import cn.tedu.charging.order.clients.DeviceClient;
@@ -155,18 +158,37 @@ public class OrderServiceImpl implements OrderService {
                 throw new OrderBusinessException(4005, "订单状态不是充电中，无法结束订单", billId);
             }
 
-            // 2. 更新成功订单状态为已结束（状态2）
+            // 2. 动态费率计算核心逻辑
+            BigDecimal finalAmount = calculateDynamicFee(success, billId);
+            
+            // 如果动态计算失败，使用默认值
+            if (finalAmount == null) {
+                log.warn("动态费率计算失败，使用默认费用, billId={}", billId);
+                finalAmount = new BigDecimal("15.50");
+            }
+
+            // 3. 更新成功订单状态为已结束（状态2）
             billRepository.updateSuccessStatus(billId, 2);
 
-            // 3. 更新结束订单记录
+            // 4. 更新结束订单记录 - 使用动态计算的费用
             ChargingBillEndPO endRecord = new ChargingBillEndPO();
             endRecord.setBillId(billId);
-
-            endRecord.setConsumeAmount(new BigDecimal("15.50"));
+            endRecord.setConsumeAmount(finalAmount);
+            log.debug("订单费用计算完成, billId={}, 金额={}", billId, finalAmount);
+            
+            // 补充其他真实数据（如果有）
+            if (success.getChargingStartTime() != null) {
+                // 计算充电时长（毫秒）
+                long durationMillis = System.currentTimeMillis() - success.getChargingStartTime().getTime();
+                endRecord.setChargingDuration((int)(durationMillis / 1000)); // 转换为秒
+            }
+            
+            // 设置结束原因（正常结束）
+            endRecord.setEndReason(2); // 2表示正常结束
             
             billRepository.saveEnd(endRecord);
 
-            // 4. 同步释放充电枪状态为"空闲"
+            // 5. 同步释放充电枪状态为"空闲"
             JsonResult<Boolean> releaseResult = deviceClient.releaseGun(success.getGunId());
             if (releaseResult.getCode() != 0) {
                 log.warn("释放充电枪状态失败，但订单已结束，billId={}", billId);
@@ -192,6 +214,122 @@ public class OrderServiceImpl implements OrderService {
     }
 
 
+    /**
+     * 动态费率计算核心方法
+     * @param success 成功订单信息
+     * @param billId 订单ID
+     * @return 计算后的费用，null表示计算失败
+     */
+    private BigDecimal calculateDynamicFee(ChargingBillSuccessPO success, String billId) {
+        try {
+            log.debug("开始动态费率计算, billId={}", billId);
+            
+            // 1. 获取pileId（充电桩ID）
+            Integer pileId = getPileIdFromGun(success.getGunId(), billId);
+            if (pileId == null) {
+                log.warn("无法获取pileId，使用默认费率计算, billId={}", billId);
+                pileId = 1; // 默认桩ID
+            }
+            
+            // 2. 获取充电时长（秒）
+            long chargingDuration = 0;
+            if (success.getChargingStartTime() != null) {
+                chargingDuration = (System.currentTimeMillis() - success.getChargingStartTime().getTime()) / 1000;
+            }
+            
+            // 3. 获取充电电量（度）
+            double chargingCapacity = 0.0;
+            if (success.getChargingCapacity() != null) {
+                chargingCapacity = success.getChargingCapacity().doubleValue();
+            }
+            
+            // 4. 调用计价中心计算费用
+            BigDecimal calculatedAmount = callCostCenter(pileId, chargingDuration, chargingCapacity, billId);
+            if (calculatedAmount != null) {
+                log.debug("计价中心计算成功, billId={}, 费用={}", billId, calculatedAmount);
+                return calculatedAmount;
+            }
+            
+            // 5. 计价中心调用失败，使用本地费率配置
+            log.warn("计价中心调用失败，使用本地费率配置, billId={}", billId);
+            return calculateLocalRate(pileId, chargingDuration, chargingCapacity);
+            
+        } catch (Exception e) {
+            log.error("动态费率计算异常, billId={}", billId, e);
+            return null;
+        }
+    }
+    
+    /**
+     * 从枪信息获取pileId
+     */
+    private Integer getPileIdFromGun(Integer gunId, String billId) {
+        try {
+            JsonResult<ChargingGunInfoPO> gunResult = deviceClient.getGunInfo(gunId);
+            if (gunResult.getCode() == 0 && gunResult.getData() != null) {
+                Integer pileId = gunResult.getData().getPileId();
+                log.debug("获取pileId成功, billId={}, pileId={}", billId, pileId);
+                return pileId;
+            } else {
+                log.warn("获取枪信息失败, gunId={}, billId={}", gunId, billId);
+                return null;
+            }
+        } catch (Exception e) {
+            log.error("调用设备服务获取枪信息异常, gunId={}, billId={}", gunId, billId, e);
+            return null;
+        }
+    }
+    
+    /**
+     * 调用计价中心计算费用
+     */
+    private BigDecimal callCostCenter(Integer pileId, long durationSeconds, double capacity, String billId) {
+        try {
+            ProgressCostParam costParam = new ProgressCostParam();
+            costParam.setOrderNo(billId);
+            costParam.setPileId(pileId);
+            costParam.setTotalCapacity(capacity);
+            // 可以根据需要补充其他参数
+            
+            JsonResult<ProgressCostVO> costResult = costClient.calculateCost(costParam);
+            if (costResult.getCode() == 0 && costResult.getData() != null) {
+                Double totalCost = costResult.getData().getTotalCost();
+                return totalCost != null ? new BigDecimal(totalCost.toString()) : null;
+            } else {
+                log.warn("计价中心返回错误, billId={}, message={}", billId, costResult.getMessage());
+                return null;
+            }
+        } catch (Exception e) {
+            log.error("调用计价中心异常, billId={}", billId, e);
+            return null;
+        }
+    }
+    
+    /**
+     * 本地费率配置计算（兜底方案）
+     */
+    private BigDecimal calculateLocalRate(Integer pileId, long durationSeconds, double capacity) {
+        try {
+            // 从配置或数据库获取费率配置
+            // 这里可以根据pileId查询不同的费率策略
+            double unitPrice = 0.8; // 元/度（示例费率）
+            double serviceFee = 0.5; // 服务费（示例）
+            
+            double electricityCost = capacity * unitPrice;
+            double totalTimeCost = (durationSeconds / 3600.0) * 0.2; // 时间费用（示例）
+            
+            double totalCost = electricityCost + serviceFee + totalTimeCost;
+            
+            log.debug("本地费率计算完成, pileId={}, 电量={}, 时长={}, 总费用={}", 
+                     pileId, capacity, durationSeconds, totalCost);
+            
+            return new BigDecimal(String.valueOf(totalCost)).setScale(2, BigDecimal.ROUND_HALF_UP);
+        } catch (Exception e) {
+            log.error("本地费率计算异常", e);
+            return null;
+        }
+    }
+    
     private String generateId() {
         return idGenerator.nextId() + "";
     }

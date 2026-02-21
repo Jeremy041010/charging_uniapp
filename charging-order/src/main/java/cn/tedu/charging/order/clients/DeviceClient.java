@@ -1,8 +1,10 @@
 package cn.tedu.charging.order.clients;
 
 import cn.tedu.charging.common.protocol.JsonResult;
+import cn.tedu.charging.device.pojo.po.ChargingGunInfoPO;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
 
 /**
@@ -20,4 +22,8 @@ public interface DeviceClient {
     // 新增：释放充电枪
     @GetMapping("/device/gun/release")
     JsonResult<Boolean> releaseGun(@RequestParam("gunId") Integer gunId);
+    
+    // 新增：获取枪信息（用于获取pileId）
+    @GetMapping("/device/gun/info/{gunId}")
+    JsonResult<ChargingGunInfoPO> getGunInfo(@PathVariable("gunId") Integer gunId);
 }
