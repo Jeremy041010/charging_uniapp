@@ -26,4 +26,6 @@ public interface BillRepository {
     
     // 查询结束订单信息
     ChargingBillEndPO getEndByBillId(String billId);
+
+
 }
